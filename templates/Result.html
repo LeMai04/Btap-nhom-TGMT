@@ -1,0 +1,12 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Kết quả nhận diện</title>
+</head>
+<body>
+    <h1>Kết quả:</h1>
+    <img src="{{ url_for('display_image', filename=filename) }}" width="300"><br>
+    <h2>{{ result }}</h2>
+    <a href="{{ url_for('index') }}">Quay lại</a>
+</body>
+</html>
