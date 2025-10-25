@@ -55,6 +55,10 @@
         input[type="submit"]:hover {
             background: #1256a3;
         }
+        /* small additions for webcam UI */
+        #videoSection { display: none; margin-top: 12px; }
+        video { width: 100%; max-width: 360px; border-radius: 8px; background: #000; }
+        #captureBtn, #stopCamBtn { margin: 8px 6px; }
         @media (max-width: 500px) {
             .container {
                 padding: 18px 8px;
@@ -70,10 +74,97 @@
             Tải lên ảnh biển báo để hệ thống nhận diện và phân tích.<br>
             Hỗ trợ các định dạng: JPG, PNG.
         </div>
+
+        <!-- ...existing file upload form... -->
         <form method="POST" enctype="multipart/form-data">
             <input type="file" name="file" accept="image/*" required>
             <input type="submit" value="Nhận diện">
         </form>
+
+        <!-- New webcam controls -->
+        <div style="margin-top:18px;">
+            <button id="useCamBtn" type="button">Sử dụng Web Cam</button>
+        </div>
+
+        <div id="videoSection">
+            <video id="video" autoplay playsinline></video>
+            <div>
+                <button id="captureBtn" type="button">Chụp ảnh</button>
+                <button id="stopCamBtn" type="button">Dừng</button>
+            </div>
+            <canvas id="canvas" style="display:none;"></canvas>
+        </div>
     </div>
+
+    <script>
+        // ...existing code... (none) ...
+
+        const useCamBtn = document.getElementById('useCamBtn');
+        const videoSection = document.getElementById('videoSection');
+        const video = document.getElementById('video');
+        const captureBtn = document.getElementById('captureBtn');
+        const stopCamBtn = document.getElementById('stopCamBtn');
+        const canvas = document.getElementById('canvas');
+        let stream = null;
+
+        useCamBtn.addEventListener('click', async () => {
+            if (stream) {
+                // already running: toggle visibility
+                videoSection.style.display = videoSection.style.display === 'none' ? 'block' : 'none';
+                return;
+            }
+            try {
+                stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+                video.srcObject = stream;
+                videoSection.style.display = 'block';
+            } catch (err) {
+                alert('Không thể truy cập webcam: ' + err.message);
+            }
+        });
+
+        captureBtn.addEventListener('click', () => {
+            if (!stream) return alert('Webcam chưa bật');
+            const vw = video.videoWidth;
+            const vh = video.videoHeight;
+            canvas.width = vw;
+            canvas.height = vh;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(video, 0, 0, vw, vh);
+            const dataURL = canvas.toDataURL('image/png');
+
+            // send to server
+            fetch('/upload_snapshot', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ image: dataURL })
+            })
+            .then(r => {
+                if (r.redirected) {
+                    // if server responds with a render_template (HTML), it will not redirect automatically;
+                    // fetch response will contain HTML — instead, navigate to the response URL if server used redirects.
+                    window.location = r.url;
+                } else {
+                    return r.text();
+                }
+            })
+            .then(html => {
+                if (html) {
+                    // replace current document with result HTML
+                    document.open();
+                    document.write(html);
+                    document.close();
+                }
+            })
+            .catch(err => alert('Lỗi khi gửi ảnh: ' + err));
+        });
+
+        stopCamBtn.addEventListener('click', () => {
+            if (stream) {
+                stream.getTracks().forEach(t => t.stop());
+                stream = null;
+            }
+            videoSection.style.display = 'none';
+        });
+    </script>
 </body>
 </html>
